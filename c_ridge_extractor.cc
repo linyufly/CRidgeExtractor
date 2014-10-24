@@ -14,8 +14,10 @@
 #include <vtkCellArray.h>
 #include <vtkPoints.h>
 #include <vtkMath.h>
+#include <vtkDoubleArray.h>
 
 #include <cstring>
+#include <cmath>
 
 #include <algorithm>
 
@@ -109,8 +111,66 @@ void CRidgeExtractor::get_cauchy_green_tensor(
   (*cauchy_green)->GetPointData()->GetScalars()->SetName("cauchy_green");
 }
 
+void CRidgeExtractor::get_ftle(vtkStructuredPoints *cauchy_green,
+                      vtkStructuredPoints **ftle) {
+  int dimensions[3];
+  double spacing[3], origin[3];
+
+  cauchy_green->GetDimensions(dimensions);
+  cauchy_green->GetSpacing(spacing);
+  cauchy_green->GetOrigin(origin);
+
+  vtkSmartPointer<vtkDoubleArray> ftle_data =
+      vtkSmartPointer<vtkDoubleArray>::New();
+
+  ftle_data->SetName("ftle");
+  ftle_data->SetNumberOfComponents(1);
+
+  int index = 0;
+  for (int z = 0; z < dimensions[2]; z++) {
+    for (int y = 0; y < dimensions[1]; y++) {
+      for (int x = 0; x < dimensions[0]; x++) {
+        double tensor[9];
+        cauchy_green->GetPointData()->GetScalars()->GetTuple(index, tensor);
+        index++;
+
+        double **f_tensor = create_matrix<double>(3, 3);
+        for (int row = 0; row < 3; row++) {
+          for (int col = 0; col < 3; col++) {
+            f_tensor[row][col] = tensor[row * 3 + col];
+          }
+        }
+
+        double **f_transpose = transpose(f_tensor, 3, 3);
+
+        double **c_tensor = matrix_matrix_multiplication(
+            f_transpose, f_tensor, 3, 3, 3);
+
+        double **eigen_vectors = create_matrix<double>(3, 3);
+        double eigen_values[3];
+
+        vtkMath::Jacobi(c_tensor, eigen_values, eigen_vectors);
+
+        ftle_data->InsertNextTuple1(log(eigen_values[0]) / 2.0);
+
+        delete_matrix(eigen_vectors);
+        delete_matrix(c_tensor);
+        delete_matrix(f_transpose);
+        delete_matrix(f_tensor);
+      }
+    }
+  }
+
+  *ftle = vtkStructuredPoints::New();
+  (*ftle)->SetDimensions(dimensions);
+  (*ftle)->SetOrigin(origin);
+  (*ftle)->SetSpacing(spacing);
+  (*ftle)->GetPointData()->SetScalars(ftle_data);
+}
+
 vtkPolyData *CRidgeExtractor::extract_ridges(
     vtkStructuredPoints *flow_map) {
+/*
   int dimensions[3];
   double spacing[3], origin[3];
   scalar_field->GetDimensions(dimensions);
@@ -304,4 +364,7 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
   hessian_field->Delete();
 
   return mesh;
+*/
+
+  return NULL;
 }

@@ -16,7 +16,10 @@ class CRidgeExtractor {
                                        vtkStructuredPoints **hessian);
 
   static void get_cauchy_green_tensor(vtkStructuredPoints *flow_map,
-                                      vtkStructuredPoints *cauchy_green);
+                                      vtkStructuredPoints **cauchy_green);
+
+  static void get_ftle(vtkStructuredPoints *cauchy_green,
+                       vtkStructuredPoints **ftle);
 
   // The flow map is stored in a scalar field of flow_map->GetPointData().
   vtkPolyData *extract_ridges(vtkStructuredPoints *flow_map);
