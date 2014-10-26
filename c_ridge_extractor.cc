@@ -42,6 +42,23 @@ double dot_product_3d(double *a, double *b) {
   return result;
 }
 
+// e1 is the eigen vector of the largest eigen value.
+// l1 is the largest eigen value.
+void get_e1(double **cauchy_green, double *e1, double *l1) {
+  double *eigen_values = new double[3];
+  double **eigen_vectors = create_matrix<double>(3, 3);
+  vtkMath::Jacobi(cauchy_green, eigen_values, eigen_vectors);
+
+  *l1 = eigen_values[0];
+
+  for (int i = 0; i < 3; i++) {
+    e1[i] = eigen_vectors[i][0];
+  }
+
+  delete [] eigen_values;
+  delete_matrix(eigen_vectors);
+}
+
 // e3 is the eigen vector of the smallest eigen value.
 // l3 is the smallest eigen value.
 void get_e3(double **hessian, double *e3, double *l3) {
@@ -57,7 +74,6 @@ void get_e3(double **hessian, double *e3, double *l3) {
 
   delete [] eigen_values;
   delete_matrix(eigen_vectors);
-  delete_matrix(hessian);
 }
 
 }
@@ -170,16 +186,23 @@ void CRidgeExtractor::get_ftle(vtkStructuredPoints *cauchy_green,
 
 vtkPolyData *CRidgeExtractor::extract_ridges(
     vtkStructuredPoints *flow_map) {
-/*
   int dimensions[3];
   double spacing[3], origin[3];
-  scalar_field->GetDimensions(dimensions);
-  scalar_field->GetSpacing(spacing);
-  scalar_field->GetOrigin(origin);
+  flow_map->GetDimensions(dimensions);
+  flow_map->GetSpacing(spacing);
+  flow_map->GetOrigin(origin);
 
-  // Calculate the gradient and hessian
-  vtkStructuredPoints *gradient_field = NULL, *hessian_field = NULL;
-  get_gradient_and_hessian(scalar_field, &gradient_field, &hessian_field);
+  // Get Cauchy-Green tensor
+  vtkStructuredPoints *cauchy_green = NULL;
+  get_cauchy_green_tensor(flow_map, &cauchy_green);
+
+  // Get FTLE
+  vtkStructuredPoints *ftle = NULL;
+  get_ftle(cauchy_green, &ftle);
+
+  // Get gradient of FTLE
+  vtkStructuredPoints *grad_ftle = NULL;
+  get_gradient(ftle, &grad_ftle);
 
   int nx = dimensions[0];
   int ny = dimensions[1];
@@ -204,7 +227,7 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
   for (int x = 0; x + 1 < nx; x++) {
     for (int y = 0; y + 1 < ny; y++) {
       for (int z = 0; z + 1 < nz; z++) {
-        double dot_prod[3][3][3], e3[3][3][3][3], grad[3][3][3][3];
+        double dot_prod[3][3][3], e1[3][3][3][3], grad[3][3][3][3];
 
         // Collect e3 and grad
         int num_pos = 0;
@@ -216,35 +239,30 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
               int curr_y = y + dy;
               int curr_z = z + dz;
 
-              double **hessian = create_matrix<double>(3, 3);
+              double **cg = create_matrix<double>(3, 3);
               int point_id = (curr_z * ny + curr_y) * nx + curr_x;
 
               double tensor[9];
-              hessian_field->GetPointData()->GetScalars()
-                                           ->GetTuple(point_id, tensor);
+              cauchy_green->GetPointData()->GetScalars()
+                                          ->GetTuple(point_id, tensor);
               for (int i = 0; i < 3; i++) {
                 for (int j = 0; j < 3; j++) {
-                  hessian[i][j] = tensor[i * 3 + j];
+                  cg[i][j] = tensor[i * 3 + j];
                 }
               }
 
-              double l3;
-              get_e3(hessian, e3[dx][dy][dz], &l3);
-              if (l3 > 0.0) {
-                num_pos++;
-              }
+              double l1;
+              get_e1(cg, e1[dx][dy][dz], &l1);
+
+              delete_matrix(cg);
               
-              gradient_field->GetPointData()->GetScalars()
-                                            ->GetTuple(point_id, tensor);
+              grad_ftle->GetPointData()->GetScalars()
+                                       ->GetTuple(point_id, tensor);
               for (int i = 0; i < 3; i++) {
                 grad[dx][dy][dz][i] = tensor[i];
               }
             }
           }
-        }
-
-        if (num_pos > 0) {
-          continue;
         }
 
         // Re-orientate e3
@@ -254,7 +272,7 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
           for (int dy = 0; dy < 2; dy++) {
             for (int dz = 0; dz < 2; dz++) {
               for (int i = 0; i < 3; i++) {
-                vectors[num_vectors][i] = e3[dx][dy][dz][i];
+                vectors[num_vectors][i] = e1[dx][dy][dz][i];
               }
               num_vectors++;
             }
@@ -268,14 +286,14 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
         for (int dx = 0; dx < 2; dx++) {
           for (int dy = 0; dy < 2; dy++) {
             for (int dz = 0; dz < 2; dz++) {
-              if (dot_product_3d(pivot, e3[dx][dy][dz]) < 0.0) {
+              if (dot_product_3d(pivot, e1[dx][dy][dz]) < 0.0) {
                 for (int i = 0; i < 3; i++) {
-                  e3[dx][dy][dz][i] *= -1.0;
+                  e1[dx][dy][dz][i] *= -1.0;
                 }
               }
 
               dot_prod[dx][dy][dz] = dot_product_3d(grad[dx][dy][dz],
-                                                    e3[dx][dy][dz]);
+                                                    e1[dx][dy][dz]);
             }
           }
         }
@@ -360,11 +378,9 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
 
   delete_4d_array(edge_mark);
 
-  gradient_field->Delete();
-  hessian_field->Delete();
+  cauchy_green->Delete();
+  ftle->Delete();
+  grad_ftle->Delete();
 
   return mesh;
-*/
-
-  return NULL;
 }

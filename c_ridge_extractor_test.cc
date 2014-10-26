@@ -52,7 +52,6 @@ void get_cauchy_green_tensor_and_get_ftle_test() {
   printf("} get_cauchy_green_tensor_and_get_ftle_test\n");
 }
 
-/*
 void extract_ridges_test() {
   printf("extract_ridges_test {\n");
 
@@ -84,11 +83,10 @@ void extract_ridges_test() {
 
   printf("} extract_ridges_test\n\n");
 }
-*/
 
 int main() {
   get_cauchy_green_tensor_and_get_ftle_test();
-  // extract_ridges_test();
+  extract_ridges_test();
 
   return 0;
 }

@@ -14,4 +14,6 @@ double **transpose(double **a, int n, int m);
 // The result is a k-dimension vector.
 double *principal_component(double **vectors, int n, int k);
 
+double determinant_3(double **matrix);
+
 #endif  // MATH_H_

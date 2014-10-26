@@ -21,6 +21,10 @@ class CRidgeExtractor {
   static void get_ftle(vtkStructuredPoints *cauchy_green,
                        vtkStructuredPoints **ftle);
 
+  static void get_determinant(vtkStructuredPoints *cauchy_green,
+                              vtkStructuredPoints *grad_ftle,
+                              vtkStructuredPoints **determinant);
+
   // The flow map is stored in a scalar field of flow_map->GetPointData().
   vtkPolyData *extract_ridges(vtkStructuredPoints *flow_map);
 };
