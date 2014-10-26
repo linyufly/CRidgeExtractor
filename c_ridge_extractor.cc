@@ -45,9 +45,12 @@ double dot_product_3d(double *a, double *b) {
 // e1 is the eigen vector of the largest eigen value.
 // l1 is the largest eigen value.
 void get_e1(double **cauchy_green, double *e1, double *l1) {
+  double **f_trans = transpose(cauchy_green, 3, 3);
+  double **tensor = matrix_matrix_multiplication(f_trans, cauchy_green, 3, 3, 3);
+
   double *eigen_values = new double[3];
   double **eigen_vectors = create_matrix<double>(3, 3);
-  vtkMath::Jacobi(cauchy_green, eigen_values, eigen_vectors);
+  vtkMath::Jacobi(tensor, eigen_values, eigen_vectors);
 
   *l1 = eigen_values[0];
 
@@ -57,6 +60,8 @@ void get_e1(double **cauchy_green, double *e1, double *l1) {
 
   delete [] eigen_values;
   delete_matrix(eigen_vectors);
+  delete_matrix(f_trans);
+  delete_matrix(tensor);
 }
 
 // e3 is the eigen vector of the smallest eigen value.
@@ -167,7 +172,7 @@ void CRidgeExtractor::get_ftle(vtkStructuredPoints *cauchy_green,
 
         vtkMath::Jacobi(c_tensor, eigen_values, eigen_vectors);
 
-        ftle_data->InsertNextTuple1(log(eigen_values[0]) / 2.0);
+        ftle_data->InsertNextTuple1(log(sqrt(eigen_values[0])));
 
         delete_matrix(eigen_vectors);
         delete_matrix(c_tensor);
@@ -230,8 +235,6 @@ vtkPolyData *CRidgeExtractor::extract_ridges(
         double dot_prod[3][3][3], e1[3][3][3][3], grad[3][3][3][3];
 
         // Collect e3 and grad
-        int num_pos = 0;
-
         for (int dx = 0; dx < 2; dx++) {
           for (int dy = 0; dy < 2; dy++) {
             for (int dz = 0; dz < 2; dz++) {
